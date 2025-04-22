@@ -200,3 +200,16 @@ def init_test_data(db):
             }
         ]
         db.collection("orders").import_bulk(orders_data)
+
+        # Создаем связи между сущностями
+        db.collection("created_order").insert({
+            "_from": "users/customer1",
+            "_to": "orders/order1"
+        })
+        
+        db.collection("contain_product").insert({
+            "_from": "orders/order1",
+            "_to": "products/prod1"
+        })
+        
+        print("Добавлены тестовые заказы и связи")
