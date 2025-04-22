@@ -150,3 +150,38 @@ def init_test_data(db):
         ]
         db.collection("users").import_bulk(users_data)
         print("Добавлены тестовые пользователи")
+
+    # Тестовые товары (оконные конструкции)
+    if db.collection("products").count() == 0:
+        products_data = [
+            {
+                "_key": "prod1",
+                "name": "Окно ПВХ Стандарт",
+                "description": "Одностворчатое окно из белого ПВХ профиля",
+                "height": 1.5,
+                "width": 1.2,
+                "material": "ПВХ",
+                "color": "белый",
+                "equipment": "Стандарт",
+                "sum_of_sections": 1,
+                "price": 12500,
+                "in_stock": True,
+                "created_at": datetime.utcnow().isoformat()
+            },
+            {
+                "_key": "prod2",
+                "name": "Окно ПВХ Премиум",
+                "description": "Двухстворчатое окно с энергосберегающим стеклопакетом",
+                "height": 1.8,
+                "width": 1.5,
+                "material": "ПВХ",
+                "color": "коричневый",
+                "equipment": "Премиум",
+                "sum_of_sections": 2,
+                "price": 21500,
+                "in_stock": True,
+                "created_at": datetime.utcnow().isoformat()
+            }
+        ]
+        db.collection("products").import_bulk(products_data)
+        print("Добавлены тестовые товары")
