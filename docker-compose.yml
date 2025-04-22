@@ -1,0 +1,19 @@
+
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - arangodb
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload   # здесь исправили команду запуска
+
+  arangodb:
+    image: arangodb
+    ports:
+      - "8529:8529"
+    environment:
+      ARANGO_ROOT_PASSWORD: openSesame
