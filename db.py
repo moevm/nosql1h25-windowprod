@@ -134,5 +134,19 @@ def init_test_data(db):
                 "birth_date": "1990-07-20",
                 "created_at": datetime.utcnow().isoformat(),
                 "is_active": True
+            },
+            {
+                "_key": "customer1",
+                "username": "customer1",
+                "password_hash": bcrypt.hashpw(b"customer123", bcrypt.gensalt()).decode(),
+                "role": "customer",
+                "first_name": "Елена",
+                "last_name": "Покупателева",
+                "phone_number": "+79110000003",
+                "birth_date": "1995-11-30",
+                "created_at": datetime.utcnow().isoformat(),
+                "is_active": True
             }
         ]
+        db.collection("users").import_bulk(users_data)
+        print("Добавлены тестовые пользователи")
