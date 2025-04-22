@@ -185,3 +185,18 @@ def init_test_data(db):
         ]
         db.collection("products").import_bulk(products_data)
         print("Добавлены тестовые товары")
+
+    # Создаем тестовые заказы
+    if db.collection("orders").count() == 0 and db.collection("users").count() > 0:
+        orders_data = [
+            {
+                "_key": "order1",
+                "address": "г. Москва, ул. Ленина, д. 10, кв. 5",
+                "email": "client1@example.com",
+                "status": "new",
+                "comments": "Подъезд со двора",
+                "sum_price": 12500,
+                "created_at": datetime.utcnow().isoformat()
+            }
+        ]
+        db.collection("orders").import_bulk(orders_data)
