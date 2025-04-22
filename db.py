@@ -59,3 +59,28 @@ def init_db():
             if not db.has_collection(col_name):
                 db.create_collection(col_name)
                 print(f"Создана коллекция: {col_name}")
+
+        # Создаем edge-коллекции и связи
+        for edge_name, from_col, to_col in edge_collections:
+            if not db.has_collection(edge_name):
+                db.create_collection(edge_name, edge=True)
+                print(f"Создана edge-коллекция: {edge_name} ({from_col} -> {to_col})")
+        
+        # Создаем индексы для ускорения поиска
+        if db.has_collection("users"):
+            users = db.collection("users")
+            users.add_persistent_index(["phone_number"], unique=True)
+            users.add_persistent_index(["role"])
+            users.add_persistent_index(["last_name", "first_name"])
+        
+        if db.has_collection("products"):
+            products = db.collection("products")
+            products.add_persistent_index(["name"])
+            products.add_persistent_index(["material"])
+            products.add_persistent_index(["price"])
+            products.add_fulltext_index(["description"])
+        
+        # Инициализация тестовых данных
+        init_test_data(db)
+        
+        return db
