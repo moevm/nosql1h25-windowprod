@@ -30,3 +30,32 @@ def get_db():
             print(f"Ошибка подключения к ArangoDB: {e}")
             raise
     return _db
+
+def init_db():
+    """Инициализирует базу данных: создает коллекции, индексы и тестовые данные"""
+    try:
+        db = get_db()
+        
+        # Создаем основные коллекции
+        collections = [
+            "users",       # Пользователи системы
+            "products",    # Окна
+            "orders",      # Заказы клиентов
+            "measurements", # Замеры
+            "payments",     # Платежи
+            "photos"        # Фотографии товаров
+        ]
+        
+        # Создаем edge-коллекции для связей
+        edge_collections = [
+            ("created_order", "users", "orders"),      # Пользователь создал заказ
+            ("contain_product", "orders", "products"), # Заказ содержит товары
+            ("product_photos", "products", "photos"),  # Товар имеет фотографии
+            ("assigned_measurement", "users", "measurements") # Замерщик назначен на замер
+        ]
+        
+        # Создаем обычные коллекции
+        for col_name in collections:
+            if not db.has_collection(col_name):
+                db.create_collection(col_name)
+                print(f"Создана коллекция: {col_name}")
