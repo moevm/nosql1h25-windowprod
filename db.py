@@ -3,6 +3,9 @@ from arango.exceptions import ArangoServerError, CollectionCreateError
 import os
 from typing import Optional
 from arango.database import StandardDatabase
+from datetime import datetime
+from arango.exceptions import ArangoServerError, CollectionCreateError
+import bcrypt
 
 # Конфигурация подключения к ArangoDB
 ARANGO_HOST = os.getenv("ARANGO_HOST", "http://arangodb:8529")
@@ -84,3 +87,52 @@ def init_db():
         init_test_data(db)
         
         return db
+    except Exception as e:
+        print(f"Ошибка инициализации БД: {e}")
+        raise
+
+def init_test_data(db):
+    """Заполняет базу тестовыми данными"""
+    # Тестовые пользователи для всех ролей
+    if db.collection("users").count() == 0:
+        users_data = [
+            # SuperAdmin (полные права)
+            {
+                "_key": "superadmin",
+                "username": "superadmin",
+                "password_hash": bcrypt.hashpw(b"superadmin123", bcrypt.gensalt()).decode(),
+                "role": "superadmin",
+                "first_name": "Алексей",
+                "last_name": "Главный",
+                "phone_number": "+79110000000",
+                "birth_date": "1980-01-01",
+                "created_at": datetime.utcnow().isoformat(),
+                "is_active": True
+            },
+            # Администратор
+            {
+                "_key": "admin",
+                "username": "admin",
+                "password_hash": bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode(),
+                "role": "admin",
+                "first_name": "Ольга",
+                "last_name": "Администраторова",
+                "phone_number": "+79110000001",
+                "birth_date": "1985-05-15",
+                "created_at": datetime.utcnow().isoformat(),
+                "is_active": True
+            },
+            # Замерщик
+            {
+                "_key": "measurer1",
+                "username": "measurer1",
+                "password_hash": bcrypt.hashpw(b"measurer123", bcrypt.gensalt()).decode(),
+                "role": "measurer",
+                "first_name": "Иван",
+                "last_name": "Замеров",
+                "phone_number": "+79110000002",
+                "birth_date": "1990-07-20",
+                "created_at": datetime.utcnow().isoformat(),
+                "is_active": True
+            }
+        ]
