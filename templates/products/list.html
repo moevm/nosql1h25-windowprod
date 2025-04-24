@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Каталог товаров</h1>
+    
+    <!-- Фильтры -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Фильтры</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="/products" class="row g-3">
+                <!-- Текстовые фильтры -->
+                <div class="col-md-4">
+                    <label for="name" class="form-label">Название</label>
+                    <input type="text" class="form-control" id="name" name="name" 
+                           value="{{ filters.name if filters.name else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="material" class="form-label">Материал</label>
+                    <input type="text" class="form-control" id="material" name="material"
+                           value="{{ filters.material if filters.material else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="color" class="form-label">Цвет</label>
+                    <input type="text" class="form-control" id="color" name="color"
+                           value="{{ filters.color if filters.color else '' }}">
+                </div>
+                
+                <!-- Числовые фильтры -->
+                <div class="col-md-3">
+                    <label for="min_price" class="form-label">Цена от (₽)</label>
+                    <input type="number" min="0" class="form-control" id="min_price" name="min_price"
+                           value="{{ filters.min_price if filters.min_price else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="max_price" class="form-label">Цена до (₽)</label>
+                    <input type="number" min="0" class="form-control" id="max_price" name="max_price"
+                           value="{{ filters.max_price if filters.max_price else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="min_width" class="form-label">Ширина от (м)</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="min_width" name="min_width"
+                           value="{{ filters.min_width if filters.min_width else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="max_width" class="form-label">Ширина до (м)</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="max_width" name="max_width"
+                           value="{{ filters.max_width if filters.max_width else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="min_height" class="form-label">Высота от (м)</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="min_height" name="min_height"
+                           value="{{ filters.min_height if filters.min_height else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="max_height" class="form-label">Высота до (м)</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="max_height" name="max_height"
+                           value="{{ filters.max_height if filters.max_height else '' }}">
+                </div>
+                
+                <!-- Булевый фильтр -->
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="in_stock" name="in_stock"
+                               {% if filters.in_stock %}checked{% endif %}>
+                        <label class="form-check-label" for="in_stock">
+                            Только в наличии
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Кнопки -->
+                <div class="col-12 mt-2">
+                    <button type="submit" class="btn btn-primary me-2">
+                        Применить фильтры
+                    </button>
+                    <a href="/products" class="btn btn-outline-secondary">
+                        Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Результаты -->
+    {% if products %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for product in products %}
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title h5">{{ product.name }}</h3>
+                    <h4 class="card-subtitle mb-3 text-primary">{{ product.price }} ₽</h4>
+                    
+                    <ul class="list-unstyled mb-3">
+                        <li><strong>Материал:</strong> {{ product.material }}</li>
+                        <li><strong>Цвет:</strong> {{ product.color }}</li>
+                        <li><strong>Размеры:</strong> {{ product.width }} × {{ product.height }} м</li>
+                    </ul>
+                    
+                    <p class="card-text text-muted">{{ product.description }}</p>
+                </div>
+                <div class="card-footer bg-transparent">
+                    {% if product.in_stock %}
+                        <span class="badge bg-success">В наличии</span>
+                        <a href="/order/new?product_id={{ product._key }}" class="btn btn-sm btn-primary float-end">
+                            Заказать
+                        </a>
+                    {% else %}
+                        <span class="badge bg-secondary">Нет в наличии</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <h5 class="alert-heading">Товары не найдены</h5>
+        <p>Попробуйте изменить параметры фильтрации или <a href="/products" class="alert-link">сбросить фильтры</a></p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s;
+        border-radius: 8px;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .card-footer {
+        border-top: 1px solid rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
