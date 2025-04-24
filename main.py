@@ -1,13 +1,14 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import jwt
 from datetime import datetime, timedelta
 import os
-from typing import Optional
+from typing import Optional, List
 from .db import db
 from fastapi import Request
+
 
 app = FastAPI(title="WindowShop", description="Система заказов оконных конструкций")
 templates = Jinja2Templates(directory="app/templates")
@@ -75,3 +76,50 @@ async def get_current_user(request: Request) -> Optional[User]:
     except Exception as e:
         print(f"Ошибка декодирования токена: {e}")
         return None
+
+def verify_role(user: User, allowed_roles: List[str]):
+    if not user or user.role not in allowed_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для выполнения этого действия"
+        )
+
+def build_product_filters(filters: ProductFilters) -> dict:
+    query_filters = {}
+    
+    if filters.name and filters.name.strip():
+        query_filters["name"] = {"$like": f"%{filters.name}%"}  # Регистронезависимый поиск
+    if filters.material and filters.material.strip():
+        query_filters["material"] = filters.material
+    if filters.color and filters.color.strip():
+        query_filters["color"] = filters.color
+    
+
+    if filters.min_price is not None:
+        query_filters["price"] = {">=": float(filters.min_price)}
+    if filters.max_price is not None:
+        if "price" in query_filters:
+            query_filters["price"]["<="] = float(filters.max_price)
+        else:
+            query_filters["price"] = {"<=": float(filters.max_price)}
+    
+    if filters.min_width is not None:
+        query_filters["width"] = {">=": float(filters.min_width)}
+    if filters.max_width is not None:
+        if "width" in query_filters:
+            query_filters["width"]["<="] = float(filters.max_width)
+        else:
+            query_filters["width"] = {"<=": float(filters.max_width)}
+    
+    if filters.min_height is not None:
+        query_filters["height"] = {">=": float(filters.min_height)}
+    if filters.max_height is not None:
+        if "height" in query_filters:
+            query_filters["height"]["<="] = float(filters.max_height)
+        else:
+            query_filters["height"] = {"<=": float(filters.max_height)}
+    
+    if filters.in_stock is not None:
+        query_filters["in_stock"] = bool(filters.in_stock)
+    
+    return query_filters
