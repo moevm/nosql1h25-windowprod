@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Каталог окон</h2>
+    
+    {% if user %}
+    <div class="alert alert-info">
+        Вы вошли как: <strong>{{ user.username }}</strong> ({{ user.role }})
+        <a href="/logout" class="float-right btn btn-sm btn-outline-danger">Выйти</a>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        {% for product in products %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <p class="card-text">
+                        {{ product.description }}<br>
+                        <strong>Цена:</strong> {{ product.price }} ₽<br>
+                        <strong>Размер:</strong> {{ product.width }}×{{ product.height }} мм
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-warning">Товары не найдены</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
