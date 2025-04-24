@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Оформление заказа</h2>
+    
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    
+    <form method="post" action="/order/create" class="needs-validation" novalidate>
+        <div class="mb-3">
+            <label class="form-label">Выберите товар:</label>
+            <select name="product_id" class="form-select" required>
+                <option value="">-- Выберите товар --</option>
+                {% for product in products %}
+                <option value="{{ product._key }}">
+                    {{ product.name }} ({{ product.price }} ₽)
+                </option>
+                {% endfor %}
+            </select>
+            <div class="invalid-feedback">Пожалуйста, выберите товар</div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label">Количество:</label>
+            <input type="number" name="quantity" class="form-control" value="1" min="1" required>
+            <div class="invalid-feedback">Введите корректное количество</div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label">Адрес установки:</label>
+            <input type="text" name="address" class="form-control" required>
+            <div class="invalid-feedback">Введите адрес установки</div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label">Комментарии:</label>
+            <textarea name="comments" class="form-control" rows="3"></textarea>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Подтвердить заказ</button>
+        <a href="/products" class="btn btn-secondary">Отмена</a>
+    </form>
+</div>
+
+<script>
+// Валидация формы на клиенте
+(() => {
+    'use strict'
+    const forms = document.querySelectorAll('.needs-validation')
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+            }
+            form.classList.add('was-validated')
+        }, false)
+    })
+})()
+</script>
+{% endblock %}
