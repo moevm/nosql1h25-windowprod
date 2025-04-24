@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Управление товарами</h2>
+    
+    <div class="mb-3">
+        <form method="get" class="row g-3">
+            <div class="col-md-8">
+                <input type="text" name="search" class="form-control" placeholder="Поиск по названию" value="{{ search or '' }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">Найти</button>
+                <a href="/admin/products" class="btn btn-secondary">Сбросить</a>
+            </div>
+        </form>
+    </div>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Цена</th>
+                <th>Размер</th>
+                <th>Наличие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.price }} ₽</td>
+                <td>{{ product.width }}×{{ product.height }} мм</td>
+                <td>
+                    {% if product.in_stock %}
+                    <span class="badge bg-success">В наличии</span>
+                    {% else %}
+                    <span class="badge bg-danger">Нет в наличии</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <a href="/admin/products/new" class="btn btn-primary">Добавить товар</a>
+</div>
+{% endblock %}

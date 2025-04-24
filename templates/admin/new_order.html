@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Создание нового заказа</h2>
+    <form method="post" class="needs-validation" novalidate>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Покупатель</label>
+                <select name="customer_id" class="form-select" required>
+                    <option value="">-- Выберите покупателя --</option>
+                    {% for customer in customers %}
+                    <option value="{{ customer._key }}">
+                        {{ customer.first_name }} {{ customer.last_name }} ({{ customer.phone_number }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Товар</label>
+                <select name="product_id" class="form-select" required>
+                    <option value="">-- Выберите товар --</option>
+                    {% for product in products %}
+                    <option value="{{ product._key }}" data-price="{{ product.price }}">
+                        {{ product.name }} ({{ product.price }} ₽)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Количество</label>
+                <input type="number" name="quantity" class="form-control" min="1" value="1" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Статус</label>
+                <select name="status" class="form-select" required>
+                    <option value="new">Новый</option>
+                    <option value="processing">В обработке</option>
+                    <option value="completed">Завершен</option>
+                    <option value="cancelled">Отменен</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Сумма</label>
+                <input type="text" class="form-control" id="total-price" readonly value="0 ₽">
+            </div>
+            <div class="col-12">
+                <label class="form-label">Адрес установки</label>
+                <input type="text" name="address" class="form-control" required>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Комментарии</label>
+                <textarea name="comments" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">Создать заказ</button>
+                <a href="/admin/orders" class="btn btn-secondary">Отмена</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productSelect = document.querySelector('select[name="product_id"]');
+    const quantityInput = document.querySelector('input[name="quantity"]');
+    const totalPrice = document.getElementById('total-price');
+    
+    function calculateTotal() {
+        if (productSelect.selectedOptions[0] && productSelect.selectedOptions[0].dataset.price) {
+            const price = parseFloat(productSelect.selectedOptions[0].dataset.price);
+            const quantity = parseInt(quantityInput.value) || 1;
+            totalPrice.value = (price * quantity).toFixed(2) + ' ₽';
+        }
+    }
+    
+    productSelect.addEventListener('change', calculateTotal);
+    quantityInput.addEventListener('input', calculateTotal);
+});
+</script>
+{% endblock %}

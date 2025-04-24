@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Список заказов</h2>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Покупатель</th>
+                <th>Товар</th>
+                <th>Количество</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+                <th>Дата</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order._key }}</td>
+                <td>{{ order.customer_name or 'Не указан' }}</td>
+                <td>{{ order.product_name }}</td>
+                <td>{{ order.quantity }}</td>
+                <td>{{ order.total_price }} ₽</td>
+                <td>
+                    <span class="badge bg-{% if order.status == 'new' %}primary
+                    {% elif order.status == 'completed' %}success
+                    {% else %}warning{% endif %}">
+                        {{ order.status }}
+                    </span>
+                </td>
+                <td>{{ order.created_at[:10] }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center">Нет заказов</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

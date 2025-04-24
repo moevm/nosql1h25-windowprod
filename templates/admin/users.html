@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Пользователи системы</h2>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Логин</th>
+                <th>Имя</th>
+                <th>Роль</th>
+                <th>Телефон</th>
+                <th>Дата регистрации</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.first_name }} {{ user.last_name }}</td>
+                <td>{{ user.role }}</td>
+                <td>{{ user.phone_number }}</td>
+                <td>{{ user.created_at[:10] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
