@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Добро пожаловать в Окна-Маркет</h1>
+    {% if is_authenticated %}
+        <div class="alert alert-success mt-4">
+            Вы успешно авторизованы как {{ user.username }} ({{ user.role }})
+        </div>
+        <a href="/products" class="btn btn-primary">Перейти к каталогу</a>
+    {% else %}
+        <div class="alert alert-info mt-4">
+            Пожалуйста, <a href="/login">войдите</a> в систему для доступа к каталогу
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
