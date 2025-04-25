@@ -3,28 +3,118 @@
 {% block content %}
 <div class="container mt-4">
     <h2>Пользователи системы</h2>
-    
+
     <table class="table table-striped">
         <thead>
-            <tr>
-                <th>Логин</th>
-                <th>Имя</th>
-                <th>Роль</th>
-                <th>Телефон</th>
-                <th>Дата регистрации</th>
-            </tr>
+        <tr>
+            <th>Логин</th>
+            <th>Имя</th>
+            <th>Роль</th>
+            <th>Телефон</th>
+            <th>Дата регистрации</th>
+        </tr>
         </thead>
         <tbody>
-            {% for user in users %}
-            <tr>
-                <td>{{ user.username }}</td>
-                <td>{{ user.first_name }} {{ user.last_name }}</td>
-                <td>{{ user.role }}</td>
-                <td>{{ user.phone_number }}</td>
-                <td>{{ user.created_at[:10] }}</td>
-            </tr>
-            {% endfor %}
+        {% for u in users %}
+        <tr>
+            <td>{{ u.username }}</td>
+            <td>{{ u.first_name }} {{ u.last_name }}</td>
+            <td class="role-cell"
+                data-user-id="{{ u._key }}"
+                data-current-role="{{ u.role }}">
+                {% if user.role == 'superadmin' and u._key != user.id %}
+                <div class="role-display">{{ u.role }}</div>
+                <select class="form-select role-select" style="display: none;">
+                    <option value="customer" {% if u.role == 'customer' %}selected{% endif %}>Покупатель</option>
+                    <option value="measurer" {% if u.role == 'measurer' %}selected{% endif %}>Замерщик</option>
+                    <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Администратор</option>
+                    <option value="superadmin" {% if u.role == 'superadmin' %}selected{% endif %}>Супер-админ</option>
+                </select>
+                {% else %}
+                {{ u.role }}
+                {% endif %}
+            </td>
+            <td>{{ u.phone_number }}</td>
+            <td>{{ u.created_at[:10] }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.role-cell').forEach(cell => {
+            const display = cell.querySelector('.role-display');
+            const select = cell.querySelector('.role-select');
+
+            if (display && select) {
+                // Показать выпадающий список при клике
+                display.addEventListener('click', function(e) {
+                    display.style.display = 'none';
+                    select.style.display = 'block';
+                    select.focus();
+                });
+
+                // Обновить роль при изменении выбора
+                select.addEventListener('change', async function(e) {
+                    const userId = cell.dataset.userId;
+                    const newRole = select.value;
+
+                    try {
+                        const response = await fetch(`/admin/users/${userId}/change-role`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token }}' // Добавьте CSRF защиту
+                            },
+                            body: JSON.stringify({ new_role: newRole })
+                        });
+
+                        if (response.ok) {
+                            display.textContent = newRole;
+                            cell.dataset.currentRole = newRole;
+                        } else {
+                            alert('Ошибка при обновлении роли');
+                            select.value = cell.dataset.currentRole;
+                        }
+                    } catch (error) {
+                        console.error('Ошибка:', error);
+                        select.value = cell.dataset.currentRole;
+                    }
+
+                    display.style.display = 'block';
+                    select.style.display = 'none';
+                });
+
+                // Скрыть выпадающий список при потере фокуса
+                select.addEventListener('blur', function(e) {
+                    display.style.display = 'block';
+                    select.style.display = 'none';
+                });
+            }
+        });
+    });
+</script>
+
+<style>
+    .role-cell {
+        cursor: pointer;
+        position: relative;
+    }
+    .role-display {
+        padding: 5px;
+        border: 1px solid transparent;
+    }
+    .role-display:hover {
+        background-color: #f8f9fa;
+    }
+    .role-select {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 150px;
+        z-index: 10;
+    }
+</style>
 {% endblock %}

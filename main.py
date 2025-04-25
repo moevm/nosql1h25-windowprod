@@ -477,7 +477,7 @@ async def my_orders(request: Request, user: User = Depends(get_current_user)):
             address: order.address,
             status: order.status,
             total_price: order.total_price,
-            created_at: DATE_FORMAT(DATE_TIMESTAMP(order.created_at), "%d.%m.%Y %H:%M"),
+            created_at: order.created_at,
             comments: order.comments
         }
         """
@@ -651,6 +651,51 @@ async def new_user_form(request: Request, user: User = Depends(get_current_user)
         "admin/new_user.html",
         {"request": request, "user": user, "is_authenticated": True}
     )
+
+@app.post("/admin/users/{user_key}/change-role")
+async def change_user_role(
+        request: Request,
+        user_key: str,
+        current_user: User = Depends(get_current_user)
+):
+    verify_role(current_user, ["superadmin"])
+
+    if current_user.id == user_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Нельзя изменить свою собственную роль"
+        )
+
+    data = await request.json()
+    new_role = data.get("new_role")
+
+    if not new_role:
+        raise HTTPException(
+            status_code=400,
+            detail="Не указана новая роль"
+        )
+
+    allowed_roles = ["customer", "measurer", "admin", "superadmin"]
+    if new_role not in allowed_roles:
+        raise HTTPException(
+            status_code=400,
+            detail="Недопустимая роль пользователя"
+        )
+
+    try:
+        user = db.collection("users").get(f"users/{user_key}")
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+        db.collection("users").update_match({"_key": user_key}, {"role": new_role})
+        return {"status": "ok", "new_role": new_role}
+
+    except ArangoError as e:
+        print(f"Ошибка обновления роли: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка при обновлении роли пользователя"
+        )
 
 
 
