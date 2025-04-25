@@ -1,14 +1,18 @@
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, Depends, Form, HTTPException, status, Query
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import jwt
+import bcrypt
 from datetime import datetime, timedelta
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict
+from arango.database import StandardDatabase
+from arango.exceptions import ArangoError
 from .db import db
-from fastapi import Request
-
+from fastapi import Request, Response
+from fastapi.responses import RedirectResponse
 
 app = FastAPI(title="WindowShop", description="Система заказов оконных конструкций")
 templates = Jinja2Templates(directory="app/templates")
@@ -42,7 +46,6 @@ class ProductFilters(BaseModel):
     min_height: Optional[float] = None
     max_height: Optional[float] = None
     in_stock: Optional[bool] = None
-
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -87,6 +90,7 @@ def verify_role(user: User, allowed_roles: List[str]):
 def build_product_filters(filters: ProductFilters) -> dict:
     query_filters = {}
     
+    # Текстовые фильтры (точное совпадение)
     if filters.name and filters.name.strip():
         query_filters["name"] = {"$like": f"%{filters.name}%"}  # Регистронезависимый поиск
     if filters.material and filters.material.strip():
@@ -94,7 +98,7 @@ def build_product_filters(filters: ProductFilters) -> dict:
     if filters.color and filters.color.strip():
         query_filters["color"] = filters.color
     
-
+    # Числовые фильтры (используем правильные операторы для ArangoDB)
     if filters.min_price is not None:
         query_filters["price"] = {">=": float(filters.min_price)}
     if filters.max_price is not None:
@@ -103,6 +107,7 @@ def build_product_filters(filters: ProductFilters) -> dict:
         else:
             query_filters["price"] = {"<=": float(filters.max_price)}
     
+    # Фильтры по ширине
     if filters.min_width is not None:
         query_filters["width"] = {">=": float(filters.min_width)}
     if filters.max_width is not None:
@@ -111,6 +116,7 @@ def build_product_filters(filters: ProductFilters) -> dict:
         else:
             query_filters["width"] = {"<=": float(filters.max_width)}
     
+    # Фильтры по высоте
     if filters.min_height is not None:
         query_filters["height"] = {">=": float(filters.min_height)}
     if filters.max_height is not None:
@@ -119,7 +125,536 @@ def build_product_filters(filters: ProductFilters) -> dict:
         else:
             query_filters["height"] = {"<=": float(filters.max_height)}
     
+    # Фильтр по наличию
     if filters.in_stock is not None:
         query_filters["in_stock"] = bool(filters.in_stock)
     
     return query_filters
+
+@app.get("/")
+async def home(request: Request):
+    user = await get_current_user(request)
+    if user:
+        return RedirectResponse(url="/products")
+    else:
+        return RedirectResponse(url="/login")
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": None, "is_authenticated": False}
+    )
+
+@app.post("/login")
+async def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...)
+):
+    try:
+        user_data = db.collection("users").find({"username": username}).next()
+        if not user_data or not bcrypt.checkpw(password.encode(), user_data["password_hash"].encode()):
+            return templates.TemplateResponse(
+                "login.html",
+                {
+                    "request": request,
+                    "error": "Неверный логин или пароль",
+                    "is_authenticated": False
+                },
+                status_code=401
+            )
+
+        access_token = create_access_token(
+            data={"sub": user_data["username"], "role": user_data["role"]},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            secure=False,
+            samesite="lax"
+        )
+        return response
+    except Exception as e:
+        print(f"Ошибка входа: {e}")
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "Ошибка сервера",
+                "is_authenticated": False
+            },
+            status_code=500
+        )
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/")
+    response.delete_cookie("access_token")
+    return response
+
+@app.get("/products", response_class=HTMLResponse)
+async def list_products(
+    request: Request,
+    user: User = Depends(get_current_user),
+    name: Optional[str] = Query(None),
+    material: Optional[str] = Query(None),
+    color: Optional[str] = Query(None),
+    min_price: Optional[str] = Query(None),
+    max_price: Optional[str] = Query(None),
+    min_width: Optional[str] = Query(None),
+    max_width: Optional[str] = Query(None),
+    min_height: Optional[str] = Query(None),
+    max_height: Optional[str] = Query(None),
+    in_stock: Optional[str] = Query(None)
+):
+    try:
+        def parse_float(value: Optional[str]) -> Optional[float]:
+            try:
+                if value and value.strip():
+                    return float(value.strip())
+                return None
+            except ValueError:
+                return None
+
+        # Преобразуем параметры запроса в фильтры
+        filters = ProductFilters(
+            name=name,
+            material=material,
+            color=color,
+            min_price=parse_float(min_price),
+            max_price=parse_float(max_price),
+            min_width=parse_float(min_width),
+            max_width=parse_float(max_width),
+            min_height=parse_float(min_height),
+            max_height=parse_float(max_height),
+            in_stock=in_stock == 'on' if in_stock is not None else None
+        )
+        
+        # Формируем AQL запрос
+        aql_query = "FOR p IN products"
+        bind_vars = {}
+        filter_conditions = []
+        
+        # Добавляем условия фильтрации (регистронезависимые)
+        if filters.name:
+            filter_conditions.append("LIKE(LOWER(p.name), CONCAT('%', LOWER(@name), '%'))")
+            bind_vars["name"] = filters.name
+        
+        if filters.material:
+            filter_conditions.append("LOWER(p.material) == LOWER(@material)")
+            bind_vars["material"] = filters.material
+            
+        if filters.color:
+            filter_conditions.append("LOWER(p.color) == LOWER(@color)")
+            bind_vars["color"] = filters.color
+            
+        # Числовые фильтры остаются без изменений
+        if filters.min_price is not None:
+            filter_conditions.append("p.price >= @min_price")
+            bind_vars["min_price"] = float(filters.min_price)
+            
+        if filters.max_price is not None:
+            filter_conditions.append("p.price <= @max_price")
+            bind_vars["max_price"] = float(filters.max_price)
+            
+        if filters.min_width is not None:
+            filter_conditions.append("p.width >= @min_width")
+            bind_vars["min_width"] = float(filters.min_width)
+            
+        if filters.max_width is not None:
+            filter_conditions.append("p.width <= @max_width")
+            bind_vars["max_width"] = float(filters.max_width)
+            
+        if filters.min_height is not None:
+            filter_conditions.append("p.height >= @min_height")
+            bind_vars["min_height"] = float(filters.min_height)
+            
+        if filters.max_height is not None:
+            filter_conditions.append("p.height <= @max_height")
+            bind_vars["max_height"] = float(filters.max_height)
+            
+        if filters.in_stock is not None:
+            filter_conditions.append("p.in_stock == @in_stock")
+            bind_vars["in_stock"] = bool(filters.in_stock)
+        
+        # Добавляем условия фильтрации в запрос, если они есть
+        if filter_conditions:
+            aql_query += " FILTER " + " AND ".join(filter_conditions)
+        
+        # Завершаем запрос
+        aql_query += " RETURN p"
+        
+        print("Выполняемый AQL запрос:", aql_query)
+        print("Параметры запроса:", bind_vars)
+        
+        # Выполняем запрос
+        products = list(db.aql.execute(aql_query, bind_vars=bind_vars))
+        
+        # Подготавливаем данные для шаблона
+        template_data = {
+            "request": request,
+            "user": user,
+            "products": products,
+            "is_authenticated": user is not None,
+            "filters": {
+                "name": name or "",
+                "material": material or "",
+                "color": color or "",
+                "min_price": min_price or "",
+                "max_price": max_price or "",
+                "min_width": min_width or "",
+                "max_width": max_width or "",
+                "min_height": min_height or "",
+                "max_height": max_height or "",
+                "in_stock": in_stock == 'on' if in_stock is not None else False
+            }
+        }
+        
+        return templates.TemplateResponse("products/list.html", template_data)
+        
+    except Exception as e:
+        print(f"Ошибка при загрузке товаров: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка загрузки каталога"},
+            status_code=500
+        )
+
+@app.get("/profile", response_class=HTMLResponse)
+async def profile(request: Request, user: User = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login")
+    
+    try:
+        return templates.TemplateResponse(
+            "profile.html",
+            {
+                "request": request,
+                "user": user,
+                "is_authenticated": True
+            }
+        )
+    except Exception as e:
+        print(f"Ошибка загрузки профиля: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка загрузки профиля"},
+            status_code=500
+        )
+
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+    
+    try:
+        stats = {
+            "products_count": db.collection("products").count(),
+            "orders_count": db.collection("orders").count(),
+            "users_count": db.collection("users").count()
+        }
+        return templates.TemplateResponse(
+            "admin/dashboard.html",
+            {
+                "request": request,
+                "user": user,
+                "is_authenticated": True,
+                "stats": stats
+            }
+        )
+    except Exception as e:
+        print(f"Ошибка загрузки админ-панели: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка загрузки админ-панели"},
+            status_code=500
+        )
+
+@app.get("/order/new", response_class=HTMLResponse)
+async def new_order_form(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["customer"])
+    try:
+        products = list(db.collection("products").find({"in_stock": True}))
+        return templates.TemplateResponse(
+            "orders/new.html",
+            {
+                "request": request,
+                "user": user,
+                "products": products,
+                "is_authenticated": True
+            }
+        )
+    except Exception as e:
+        print(f"Ошибка загрузки формы заказа: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка загрузки формы заказа"},
+            status_code=500
+        )
+
+@app.post("/order/create")
+async def create_order(
+    request: Request,
+    user: User = Depends(get_current_user),
+    product_id: str = Form(...),
+    quantity: int = Form(1),
+    address: str = Form(...),
+    comments: str = Form(None)
+):
+    verify_role(user, ["customer"])
+    try:
+        # Получаем информацию о продукте
+        product = db.collection("products").get(product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Товар не найден")
+
+        # Создаем заказ
+        order_data = {
+            "customer_id": user.id,
+            "customer_name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
+            "product_id": product_id,
+            "product_name": product["name"],
+            "quantity": quantity,
+            "address": address,
+            "comments": comments,
+            "status": "new",
+            "total_price": product["price"] * quantity,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        # Сохраняем заказ в БД
+        order = db.collection("orders").insert(order_data)
+
+        # Проверяем и создаем коллекцию user_orders, если она не существует
+        if not db.has_collection("user_orders"):
+            db.create_collection("user_orders", edge=True)
+            print("Создана edge-коллекция user_orders")
+
+        # Создаем связь между пользователем и заказом
+        db.collection("user_orders").insert({
+            "_from": f"users/{user.id}",
+            "_to": f"orders/{order['_key']}",
+            "type": "created",
+            "created_at": datetime.utcnow().isoformat()
+        })
+
+        return RedirectResponse(url="/my-orders", status_code=303)
+
+    except ArangoError as e:
+        print(f"Ошибка базы данных при создании заказа: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка базы данных при создании заказа"},
+            status_code=500
+        )
+    except Exception as e:
+        print(f"Ошибка создания заказа: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка создания заказа"},
+            status_code=500
+        )
+
+@app.get("/my-orders", response_class=HTMLResponse)
+async def my_orders(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["customer"])
+    try:
+        # Получаем заказы пользователя через AQL запрос
+        query = """
+        FOR order IN orders
+        FILTER order.customer_id == @customer_id
+        SORT order.created_at DESC
+        RETURN {
+            id: order._key,
+            product_name: order.product_name,
+            quantity: order.quantity,
+            address: order.address,
+            status: order.status,
+            total_price: order.total_price,
+            created_at: DATE_FORMAT(DATE_TIMESTAMP(order.created_at), "%d.%m.%Y %H:%M"),
+            comments: order.comments
+        }
+        """
+        orders = list(db.aql.execute(query, bind_vars={"customer_id": user.id}))
+        
+        return templates.TemplateResponse(
+            "orders/my_orders.html",
+            {
+                "request": request,
+                "user": user,
+                "orders": orders,
+                "is_authenticated": True
+            }
+        )
+    except ArangoError as e:
+        print(f"Ошибка базы данных при загрузке заказов: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка загрузки ваших заказов"},
+            status_code=500
+        )
+    except Exception as e:
+        print(f"Ошибка загрузки заказов: {e}")
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": "Ошибка загрузки ваших заказов"},
+            status_code=500
+        )
+
+@app.get("/api/health")
+async def health_check():
+    try:
+        return {
+            "status": "OK",
+            "db_initialized": bool(db),
+            "users_count": db.collection("users").count() if db and db.has_collection("users") else 0,
+            "products_count": db.collection("products").count() if db and db.has_collection("products") else 0,
+            "orders_count": db.collection("orders").count() if db and db.has_collection("orders") else 0
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "error": str(e)
+        }
+    
+
+# Для пользователей
+@app.get("/admin/users", response_class=HTMLResponse)
+async def admin_users(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+    users = list(db.collection("users").find({}))
+    return templates.TemplateResponse(
+        "admin/users.html",
+        {
+            "request": request,
+            "users": users,
+            "user": user,
+            "is_authenticated": True
+        }
+    )
+    
+# Маршруты для управления товарами
+@app.get("/admin/products/new", response_class=HTMLResponse)
+async def new_product_form(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+    return templates.TemplateResponse(
+        "admin/new_product.html",
+        {"request": request, "user": user, "is_authenticated": True}
+    )
+
+@app.post("/admin/products/new")
+async def create_product(
+        request: Request,
+        user: User = Depends(get_current_user),
+        name: str = Form(...),
+        description: str = Form(...),
+        price: float = Form(...),
+        width: float = Form(...),
+        height: float = Form(...),
+        material: str = Form(...),
+        color: str = Form("белый"),
+        in_stock: str = Form("on")
+):
+    verify_role(user, ["admin", "superadmin"])
+
+    try:
+        # Валидация данных
+        if any(v <= 0 for v in [price, width, height]):
+            raise ValueError("Все числовые значения должны быть больше нуля")
+
+        product_data = {
+            "name": name.strip(),
+            "description": description.strip(),
+            "price": float(price),
+            "width": float(width),
+            "height": float(height),
+            "material": material.strip(),
+            "color": color.strip(),
+            "in_stock": in_stock.lower() == "on",
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        db.collection("products").insert(product_data)
+        return RedirectResponse(url="/admin/products", status_code=303)
+
+    except Exception as e:
+        print(f"Ошибка: {str(e)}")
+        return templates.TemplateResponse(
+            "admin/new_product.html",
+            {
+                "request": request,
+                "user": user,
+                "error": f"Ошибка: {str(e)}",
+                "form_data": request.form()
+            },
+            status_code=400
+        )
+# Для товаров
+@app.get("/admin/products", response_class=HTMLResponse)
+async def admin_products(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+    products = list(db.collection("products").find({}))
+    return templates.TemplateResponse(
+        "admin/products.html",
+        {
+            "request": request,
+            "products": products,
+            "user": user,
+            "is_authenticated": True
+        }
+    )
+    
+
+# Маршруты для управления заказами
+@app.get("/admin/orders/new", response_class=HTMLResponse)
+async def new_order_form(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+    products = list(db.collection("products").find({"in_stock": True}))
+    customers = list(db.collection("users").find({"role": "customer"}))
+    return templates.TemplateResponse(
+        "admin/new_order.html",
+        {
+            "request": request,
+            "products": products,
+            "customers": customers,
+            "user": user,
+            "is_authenticated": True
+        }
+    )
+
+
+# Для заказов
+@app.get("/admin/orders", response_class=HTMLResponse)
+async def admin_orders(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+    orders = list(db.collection("orders").find({}))
+    return templates.TemplateResponse(
+        "admin/orders.html",
+        {
+            "request": request,
+            "orders": orders,
+            "user": user,
+            "is_authenticated": True
+        }
+    )
+# Маршруты для управления пользователями
+@app.get("/admin/users/new", response_class=HTMLResponse)
+async def new_user_form(request: Request, user: User = Depends(get_current_user)):
+    verify_role(user, ["superadmin"])  # Только superadmin может добавлять пользователей
+    return templates.TemplateResponse(
+        "admin/new_user.html",
+        {"request": request, "user": user, "is_authenticated": True}
+    )
+
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
