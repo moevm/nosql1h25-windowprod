@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+python-dotenv
+passlib[bcrypt]
+pyjwt
+python-arango
+python-jose[cryptography]
+bcrypt>=4.0.1

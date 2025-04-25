@@ -1,11 +1,10 @@
 from arango import ArangoClient
 from arango.exceptions import ArangoServerError, CollectionCreateError
 import os
+import bcrypt
+from datetime import datetime
 from typing import Optional
 from arango.database import StandardDatabase
-from datetime import datetime
-from arango.exceptions import ArangoServerError, CollectionCreateError
-import bcrypt
 
 # Конфигурация подключения к ArangoDB
 ARANGO_HOST = os.getenv("ARANGO_HOST", "http://arangodb:8529")
@@ -42,7 +41,7 @@ def init_db():
         # Создаем основные коллекции
         collections = [
             "users",       # Пользователи системы
-            "products",    # Окна
+            "products",    # Оконные конструкции
             "orders",      # Заказы клиентов
             "measurements", # Замеры
             "payments",     # Платежи
@@ -62,7 +61,7 @@ def init_db():
             if not db.has_collection(col_name):
                 db.create_collection(col_name)
                 print(f"Создана коллекция: {col_name}")
-
+        
         # Создаем edge-коллекции и связи
         for edge_name, from_col, to_col in edge_collections:
             if not db.has_collection(edge_name):
@@ -135,6 +134,7 @@ def init_test_data(db):
                 "created_at": datetime.utcnow().isoformat(),
                 "is_active": True
             },
+            # Покупатель
             {
                 "_key": "customer1",
                 "username": "customer1",
@@ -200,7 +200,7 @@ def init_test_data(db):
             }
         ]
         db.collection("orders").import_bulk(orders_data)
-
+        
         # Создаем связи между сущностями
         db.collection("created_order").insert({
             "_from": "users/customer1",
