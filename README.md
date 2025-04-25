@@ -16,3 +16,23 @@
 <a href=" ./../../../actions/workflows/6_report.yml" >![6. Пояснительная записка]( ./../../actions/workflows/6_report.yml/badge.svg)</a>
 
 <a href=" ./../../../actions/workflows/7_app_is_ready.yml" >![7. App is ready]( ./../../actions/workflows/7_app_is_ready.yml/badge.svg)</a>
+
+
+### Прототип хранение и представление
+Для тестирования в системе уже есть следующие пользователи:
+
+ - **СуперАдмин** 
+    -Логин: superadmin
+    -Пароль: superadmin123
+
+ - **Администратор**
+    - Логин: admin
+    - Пароль: admin123
+
+- **Замерщик**
+    - Логин: measurer1
+    - Пароль: measurer123
+
+- **Обычный пользователь/Покупатель**
+    - Логин: customer1
+    - Пароль: customer123
