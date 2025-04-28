@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  
     env_file:
       - .env
     depends_on:
@@ -11,8 +11,5 @@ services:
 
   db:  
     image: arangodb
-    ports:
-      - "8529:8529"
     environment:
       ARANGO_ROOT_PASSWORD: openSesame
-      
