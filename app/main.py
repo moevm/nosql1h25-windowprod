@@ -14,9 +14,20 @@ from .db import db
 from fastapi import Request, Response
 from fastapi.responses import RedirectResponse
 
+
 app = FastAPI(title="WindowShop", description="Система заказов оконных конструкций")
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+def format_datetime(value, format="%d.%m.%Y %H:%M:%S"):
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return value
+    return value.strftime(format)
+
+templates.env.filters["datetime"] = format_datetime
 
 # Конфигурация JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "secret-key-123")
@@ -200,18 +211,18 @@ async def logout():
 
 @app.get("/products", response_class=HTMLResponse)
 async def list_products(
-    request: Request,
-    user: User = Depends(get_current_user),
-    name: Optional[str] = Query(None),
-    material: Optional[str] = Query(None),
-    color: Optional[str] = Query(None),
-    min_price: Optional[str] = Query(None),
-    max_price: Optional[str] = Query(None),
-    min_width: Optional[str] = Query(None),
-    max_width: Optional[str] = Query(None),
-    min_height: Optional[str] = Query(None),
-    max_height: Optional[str] = Query(None),
-    in_stock: Optional[str] = Query(None)
+        request: Request,
+        user: User = Depends(get_current_user),
+        name: Optional[str] = Query(None),
+        material: Optional[str] = Query(None),
+        color: Optional[str] = Query(None),
+        min_price: Optional[str] = Query(None),
+        max_price: Optional[str] = Query(None),
+        min_width: Optional[str] = Query(None),
+        max_width: Optional[str] = Query(None),
+        min_height: Optional[str] = Query(None),
+        max_height: Optional[str] = Query(None),
+        in_stock: Optional[str] = Query(None)
 ):
     try:
         def parse_float(value: Optional[str]) -> Optional[float]:
@@ -235,67 +246,61 @@ async def list_products(
             max_height=parse_float(max_height),
             in_stock=in_stock == 'on' if in_stock is not None else None
         )
-        
+
         # Формируем AQL запрос
         aql_query = "FOR p IN products"
         bind_vars = {}
         filter_conditions = []
-        
-        # Добавляем условия фильтрации (регистронезависимые)
+
+        # Улучшенный поиск по подстроке для текстовых полей
         if filters.name:
             filter_conditions.append("LIKE(LOWER(p.name), CONCAT('%', LOWER(@name), '%'))")
-            bind_vars["name"] = filters.name
-        
+            bind_vars["name"] = filters.name.strip().lower()
+
         if filters.material:
-            filter_conditions.append("LOWER(p.material) == LOWER(@material)")
-            bind_vars["material"] = filters.material
-            
+            filter_conditions.append("LIKE(LOWER(p.material), CONCAT('%', LOWER(@material), '%'))")
+            bind_vars["material"] = filters.material.strip().lower()
+
         if filters.color:
-            filter_conditions.append("LOWER(p.color) == LOWER(@color)")
-            bind_vars["color"] = filters.color
-            
-        # Числовые фильтры остаются без изменений
+            filter_conditions.append("LIKE(LOWER(p.color), CONCAT('%', LOWER(@color), '%'))")
+            bind_vars["color"] = filters.color.strip().lower()
+
         if filters.min_price is not None:
             filter_conditions.append("p.price >= @min_price")
             bind_vars["min_price"] = float(filters.min_price)
-            
+
         if filters.max_price is not None:
             filter_conditions.append("p.price <= @max_price")
             bind_vars["max_price"] = float(filters.max_price)
-            
+
         if filters.min_width is not None:
             filter_conditions.append("p.width >= @min_width")
             bind_vars["min_width"] = float(filters.min_width)
-            
+
         if filters.max_width is not None:
             filter_conditions.append("p.width <= @max_width")
             bind_vars["max_width"] = float(filters.max_width)
-            
+
         if filters.min_height is not None:
             filter_conditions.append("p.height >= @min_height")
             bind_vars["min_height"] = float(filters.min_height)
-            
+
         if filters.max_height is not None:
             filter_conditions.append("p.height <= @max_height")
             bind_vars["max_height"] = float(filters.max_height)
-            
+
         if filters.in_stock is not None:
             filter_conditions.append("p.in_stock == @in_stock")
             bind_vars["in_stock"] = bool(filters.in_stock)
-        
-        # Добавляем условия фильтрации в запрос, если они есть
+
         if filter_conditions:
             aql_query += " FILTER " + " AND ".join(filter_conditions)
-        
-        # Завершаем запрос
+
         aql_query += " RETURN p"
-        
-        print("Выполняемый AQL запрос:", aql_query)
-        print("Параметры запроса:", bind_vars)
-        
+
         # Выполняем запрос
         products = list(db.aql.execute(aql_query, bind_vars=bind_vars))
-        
+
         # Подготавливаем данные для шаблона
         template_data = {
             "request": request,
@@ -315,9 +320,9 @@ async def list_products(
                 "in_stock": in_stock == 'on' if in_stock is not None else False
             }
         }
-        
+
         return templates.TemplateResponse("products/list.html", template_data)
-        
+
     except Exception as e:
         print(f"Ошибка при загрузке товаров: {e}")
         return templates.TemplateResponse(
@@ -325,6 +330,7 @@ async def list_products(
             {"request": request, "error": "Ошибка загрузки каталога"},
             status_code=500
         )
+
 
 @app.get("/profile", response_class=HTMLResponse)
 async def profile(request: Request, user: User = Depends(get_current_user)):

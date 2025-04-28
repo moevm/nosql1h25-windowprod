@@ -31,7 +31,7 @@
                         {{ order.status }}
                     </span>
                 </td>
-                <td>{{ order.created_at[:10] }}</td>
+                <td>{{ order.created_at | datetime }}</td>
             </tr>
             {% else %}
             <tr>

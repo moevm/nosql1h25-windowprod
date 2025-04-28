@@ -40,7 +40,7 @@
                         </span>
                     </td>
                     <td>{{ order.address }}</td>
-                    <td>{{ order.created_at[:10] }}</td>
+                    <td>{{ order.created_at | datetime }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
