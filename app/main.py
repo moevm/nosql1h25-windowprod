@@ -57,6 +57,7 @@ class ProductFilters(BaseModel):
     min_height: Optional[float] = None
     max_height: Optional[float] = None
     in_stock: Optional[bool] = None
+    description : Optional[str] = None
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -216,6 +217,7 @@ async def list_products(
         name: Optional[str] = Query(None),
         material: Optional[str] = Query(None),
         color: Optional[str] = Query(None),
+        description: Optional[str] = Query(None),
         min_price: Optional[str] = Query(None),
         max_price: Optional[str] = Query(None),
         min_width: Optional[str] = Query(None),
@@ -236,6 +238,7 @@ async def list_products(
         # Преобразуем параметры запроса в фильтры
         filters = ProductFilters(
             name=name,
+            description=description,
             material=material,
             color=color,
             min_price=parse_float(min_price),
@@ -289,6 +292,10 @@ async def list_products(
             filter_conditions.append("p.height <= @max_height")
             bind_vars["max_height"] = float(filters.max_height)
 
+        if filters.description:
+            filter_conditions.append("LIKE(LOWER(p.description), CONCAT('%', LOWER(@description), '%'))")
+            bind_vars["description"] = filters.description.strip().lower()
+
         if filters.in_stock is not None:
             filter_conditions.append("p.in_stock == @in_stock")
             bind_vars["in_stock"] = bool(filters.in_stock)
@@ -309,6 +316,7 @@ async def list_products(
             "is_authenticated": user is not None,
             "filters": {
                 "name": name or "",
+                "description": description or "",
                 "material": material or "",
                 "color": color or "",
                 "min_price": min_price or "",

@@ -27,6 +27,13 @@
                     <input type="text" class="form-control" id="color" name="color"
                            value="{{ filters.color if filters.color else '' }}">
                 </div>
+
+                <!-- Новый фильтр по описанию -->
+                <div class="col-md-6">
+                    <label for="description" class="form-label">Описание</label>
+                    <input type="text" class="form-control" id="description" name="description"
+                           value="{{ filters.description if filters.description else '' }}">
+                </div>
                 
                 <!-- Числовые фильтры -->
                 <div class="col-md-3">
