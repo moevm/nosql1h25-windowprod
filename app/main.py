@@ -72,6 +72,7 @@ async def get_current_user(request: Request) -> Optional[User]:
     token = request.cookies.get("access_token")
     if not token:
         return None
+
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -575,40 +576,59 @@ async def create_product(
         color: str = Form("белый"),
         in_stock: str = Form("on")
 ):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
     verify_role(user, ["admin", "superadmin"])
 
-    try:
-        # Валидация данных
-        if any(v <= 0 for v in [price, width, height]):
-            raise ValueError("Все числовые значения должны быть больше нуля")
+    errors = {}
 
-        product_data = {
-            "name": name.strip(),
-            "description": description.strip(),
-            "price": float(price),
-            "width": float(width),
-            "height": float(height),
-            "material": material.strip(),
-            "color": color.strip(),
-            "in_stock": in_stock.lower() == "on",
-            "created_at": datetime.utcnow().isoformat()
-        }
 
-        db.collection("products").insert(product_data)
-        return RedirectResponse(url="/admin/products", status_code=303)
+    if not name.strip():
+        errors["name"] = "Название не может быть пустым"
+    if price <= 0:
+        errors["price"] = "Цена должна быть больше нуля"
+    if width <= 0:
+        errors["width"] = "Ширина должна быть больше нуля"
+    if height <= 0:
+        errors["height"] = "Высота должна быть больше нуля"
 
-    except Exception as e:
-        print(f"Ошибка: {str(e)}")
+
+    if errors:
         return templates.TemplateResponse(
             "admin/new_product.html",
             {
                 "request": request,
                 "user": user,
-                "error": f"Ошибка: {str(e)}",
-                "form_data": request.form()
+                "errors": errors,
+                "form_data": {
+                    "name": name,
+                    "description": description,
+                    "price": price,
+                    "width": width,
+                    "height": height,
+                    "material": material,
+                    "color": color,
+                    "in_stock": in_stock
+                }
             },
             status_code=400
         )
+
+    product_data = {
+        "name": name.strip(),
+        "description": description.strip(),
+        "price": float(price),
+        "width": float(width),
+        "height": float(height),
+        "material": material.strip(),
+        "color": color.strip(),
+        "in_stock": in_stock.lower() == "on",
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+    db.collection("products").insert(product_data)
+    return RedirectResponse(url="/admin/products", status_code=303)
+
 # Для товаров
 @app.get("/admin/products", response_class=HTMLResponse)
 async def admin_products(request: Request, user: User = Depends(get_current_user)):
