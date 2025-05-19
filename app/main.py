@@ -13,6 +13,12 @@ from arango.exceptions import ArangoError
 from .db import db
 from fastapi import Request, Response
 from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
+from fastapi import File, UploadFile
+import json
+from io import BytesIO
+from fastapi.responses import StreamingResponse
+
 
 
 app = FastAPI(title="WindowShop", description="Система заказов оконных конструкций")
@@ -732,6 +738,58 @@ async def change_user_role(
         )
 
 
+@app.get("/admin/export")
+async def export_data(user: User = Depends(get_current_user)):
+    verify_role(user, ["admin", "superadmin"])
+
+    try:
+        # Собираем все данные
+        data = {
+            "products": list(db.collection("products").all()),
+            "orders": list(db.collection("orders").all()),
+            "users": list(db.collection("users").all()),
+            "measurements": list(db.collection("measurements").all()),
+        }
+
+        # Преобразуем в JSON
+        json_data = json.dumps(data, ensure_ascii=False, indent=2)
+
+        # Создаем поток для ответа
+        buffer = BytesIO()
+        buffer.write(json_data.encode("utf-8"))
+        buffer.seek(0)
+
+        return StreamingResponse(
+            buffer,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": "attachment; filename=export.json"
+            }
+        )
+    except Exception as e:
+        print(f"Ошибка экспорта: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка экспорта данных")
+@app.post("/admin/import")
+async def import_all_data(
+    user: User = Depends(get_current_user),
+    file: UploadFile = File(...)
+):
+    verify_role(user, ["admin", "superadmin"])
+
+    try:
+        content = await file.read()
+        data = json.loads(content)
+
+        # Импортируем каждый тип данных
+        for collection_name in ["products", "orders", "users"]:
+            if collection_name in data:
+                for item in data[collection_name]:
+                    db.collection(collection_name).insert(item, overwrite=True)
+
+        return RedirectResponse("/admin/dashboard", status_code=303)
+    except Exception as e:
+        print(f"Ошибка импорта данных: {e}")
+        raise HTTPException(status_code=400, detail="Ошибка импорта данных")
 
 
 if __name__ == "__main__":

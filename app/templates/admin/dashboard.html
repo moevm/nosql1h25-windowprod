@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Панель администратора</h2>
+    
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">Товары</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.products_count }}</h5>
+                    <a href="/products" class="text-white">Управление товарами</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-header">Заказы</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.orders_count }}</h5>
+                    <a href="/admin/orders" class="text-white">Управление заказами</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info mb-3">
+                <div class="card-header">Пользователи</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.users_count }}</h5>
+                    {% if user.role == 'superadmin' %}
+                    <a href="/admin/users" class="text-white">Управление пользователями</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <form method="get" action="/admin/export">
+            <button type="submit" class="btn btn-outline-primary">Экспортировать все данные (JSON)</button>
+        </form>
+
+        <form method="post" action="/admin/import" enctype="multipart/form-data">
+            <input type="file" name="file" required class="form-control my-2">
+            <button type="submit" class="btn btn-outline-success">Импортировать данные (JSON)</button>
+        </form>
+
+
+    </div>
+</div>
+{% endblock %}
