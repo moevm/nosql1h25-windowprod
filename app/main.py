@@ -18,6 +18,7 @@ from fastapi import File, UploadFile
 import json
 from io import BytesIO
 from fastapi.responses import StreamingResponse
+from pathlib import Path
 
 
 
@@ -791,7 +792,36 @@ async def import_all_data(
         print(f"Ошибка импорта данных: {e}")
         raise HTTPException(status_code=400, detail="Ошибка импорта данных")
 
+def is_collection_empty(collection_name: str) -> bool:
+    count = db.collection(collection_name).count()
+    return count == 0
+
+def load_initial_data():
+    # Пусть файл лежит по пути data/initial_data.json
+    data_path = Path(__file__).parent / "data" / "initial_data.json"
+    if not data_path.exists():
+        print("Файл с начальными данными не найден:", data_path)
+        return
+
+    with open(data_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Для каждой коллекции проверяем пустоту и, если пусто, импортируем
+    collections = ["products", "orders", "users", "measurements"]
+
+    for col in collections:
+        if is_collection_empty(col):
+            print(f"Коллекция '{col}' пустая — загружаем данные...")
+            for item in data.get(col, []):
+                try:
+                    db.collection(col).insert(item)
+                except Exception as e:
+                    print(f"Ошибка вставки в коллекцию '{col}': {e}")
+        else:
+            print(f"Коллекция '{col}' уже содержит данные — пропускаем загрузку")
+
 
 if __name__ == "__main__":
+    load_initial_data()
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
