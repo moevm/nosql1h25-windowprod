@@ -19,6 +19,7 @@ import json
 from io import BytesIO
 from fastapi.responses import StreamingResponse
 from pathlib import Path
+import traceback
 
 
 
@@ -793,34 +794,6 @@ async def import_all_data(
         print(f"Ошибка импорта данных: {e}")
         raise HTTPException(status_code=400, detail="Ошибка импорта данных")
 
-def is_collection_empty(collection_name: str) -> bool:
-    count = db.collection(collection_name).count()
-    return count == 0
-
-def load_initial_data():
-
-    data_path = Path(__file__).parent / "data" / "initial_data.json"
-    if not data_path.exists():
-        print("Файл с начальными данными не найден:", data_path)
-        return
-
-    with open(data_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    # Для каждой коллекции проверяем пустоту и, если пусто, импортируем
-    collections = ["products", "orders", "users", "measurements"]
-
-    for col in collections:
-        if is_collection_empty(col):
-            print(f"Коллекция '{col}' пустая — загружаем данные...")
-            for item in data.get(col, []):
-                try:
-                    db.collection(col).insert(item)
-                except Exception as e:
-                    print(f"Ошибка вставки в коллекцию '{col}': {e}")
-        else:
-            print(f"Коллекция '{col}' уже содержит данные — пропускаем загрузку")
-
 async def parse_form_data(request: Request):
     form = await request.form()
     return dict(form)
@@ -835,7 +808,7 @@ async def list_entities(request: Request, entity_type: str, user: User = Depends
     verify_role(user, ["superadmin"])
 
     # Проверяем, что entity_type поддерживается
-    allowed = ["users", "products", "orders", "measurements", "payments", "photos"]
+    allowed = ["users", "products", "orders", "measurements", "photos"]
     if entity_type not in allowed:
         return HTMLResponse("Entity type not supported", status_code=400)
 
@@ -870,7 +843,7 @@ async def entity_edit(request: Request, entity_type: str, item_id: str, user: Us
     form = await request.form()
     data = dict(form)
 
-    if entity_type not in ["users", "products", "orders", "measurements", "payments", "photos"]:
+    if entity_type not in ["users", "products", "orders", "measurements",  "photos"]:
         return HTMLResponse("Тип сущности не найден", status_code=404)
 
     db.collection(entity_type).update_match({"_key": item_id}, data)
@@ -885,10 +858,10 @@ async def choose_entity_type(request: Request, user: User = Depends(get_current_
         return RedirectResponse("/login")
     print(f"User role: {user.role}")
     verify_role(user, ["superadmin"])
-    entity_types = ["users", "products", "orders", "measurements", "payments", "photos"]
+    entity_types = ["users", "products", "orders", "measurements",  "photos"]
     return templates.TemplateResponse("entities/choose_type.html", {"request": request, "entity_types": entity_types, "user": user, "is_authenticated": True})
 
+
 if __name__ == "__main__":
-    load_initial_data()
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
