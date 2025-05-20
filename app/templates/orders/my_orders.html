@@ -3,14 +3,14 @@
 {% block content %}
 <div class="container mt-4">
     <h2>Мои заказы</h2>
-    
+
     {% if flash_message %}
     <div class="alert alert-success alert-dismissible fade show">
         {{ flash_message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
-    
+
     {% if orders %}
     <div class="table-responsive">
         <table class="table table-striped">
@@ -23,24 +23,35 @@
                     <th>Статус</th>
                     <th>Адрес</th>
                     <th>Дата</th>
+                    <th>Действия</th>
                 </tr>
             </thead>
             <tbody>
                 {% for order in orders %}
-                <tr>
+                <tr id="order-{{ order._id }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ order.product_name }}</td>
                     <td>{{ order.quantity }}</td>
                     <td>{{ order.total_price }} ₽</td>
                     <td>
-                        <span class="badge bg-{% if order.status == 'new' %}primary
-                        {% elif order.status == 'completed' %}success
-                        {% else %}warning{% endif %}">
-                            {{ order.status }}
+                        <span class="badge bg-{% if order.status == 'new' %}primary{% elif order.status == 'completed' %}success{% elif order.status == 'paid_online' %}success{% else %}warning{% endif %}">
+                            {% if order.status == 'new' %}Новый
+                            {% elif order.status == 'processing' %}В обработке
+                            {% elif order.status == 'paid_online' %}Оплачен онлайн
+                            {% elif order.status == 'waiting_payment' %}Ожидает оплаты
+                            {% elif order.status == 'paid_crypto' %}Оплачен криптовалютой
+                            {% elif order.status == 'completed' %}Выполнен
+                            {% elif order.status == 'cancelled' %}Отменен
+                            {% else %}{{ order.status }}{% endif %}
                         </span>
                     </td>
                     <td>{{ order.address }}</td>
                     <td>{{ order.created_at | datetime }}</td>
+                    <td>
+                        {% if order.status == 'new' or order.status == 'processing' %}
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#paymentModal" data-order-id="{{ order._id }}">Оплатить</button>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -51,5 +62,197 @@
         У вас пока нет заказов. <a href="/order/new" class="alert-link">Создать первый заказ</a>
     </div>
     {% endif %}
+
+    <!-- Payment Modal -->
+    <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="paymentModalLabel">Оплата заказа</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="paymentForm">
+                        <input type="hidden" id="orderId" name="order_id">
+                        <div class="mb-3">
+                            <label for="paymentMethod" class="form-label">Способ оплаты</label>
+                            <select class="form-select" id="paymentMethod" name="payment_method" required>
+                                <option value="" disabled selected>Выберите способ оплаты</option>
+                                <option value="cash">Наличными при получении</option>
+                                <option value="card_online">Картой онлайн</option>
+                                <option value="card_courier">Картой курьеру</option>
+                                <option value="crypto">Перевод в криптовалюте</option>
+                            </select>
+                        </div>
+                        <div id="cardDetails" style="display: none;">
+                            <div class="mb-3">
+                                <label for="cardNumber" class="form-label">Номер карты</label>
+                                <input type="text" class="form-control" id="cardNumber" name="card_number" placeholder="1234 5678 9012 3456">
+                            </div>
+                            <div class="row">
+                                <div class="col">
+                                    <label for="cardExpiry" class="form-label">Срок действия</label>
+                                    <input type="text" class="form-control" id="cardExpiry" name="card_expiry" placeholder="MM/YY">
+                                </div>
+                                <div class="col">
+                                    <label for="cardCVC" class="form-label">CVC</label>
+                                    <input type="text" class="form-control" id="cardCVC" name="card_cvc" placeholder="123">
+                                </div>
+                            </div>
+                        </div>
+                        <div id="cashDetails" style="display: none;">
+                            <p>Оплата наличными будет произведена при получении заказа по адресу в Санкт-Петербурге.</p>
+                        </div>
+                        <div id="courierDetails" style="display: none;">
+                            <p>Оплата картой курьеру при получении заказа по адресу в Санкт-Петербурге.</p>
+                        </div>
+                        <div id="cryptoDetails" style="display: none;">
+                            <p>Перевод в криптовалюте. Пожалуйста, отправьте оплату на указанный кошелек после подтверждения.</p>
+                            <div class="mb-3">
+                                <label for="cryptoWallet" class="form-label">Адрес кошелька</label>
+                                <input type="text" class="form-control" id="cryptoWallet" name="crypto_wallet" placeholder="Введите адрес криптокошелька">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="submitPayment">Оплатить</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const paymentModal = document.getElementById('paymentModal');
+    paymentModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const orderId = button.getAttribute('data-order-id');
+        document.getElementById('orderId').value = orderId;
+    });
+
+    const paymentMethodSelect = document.getElementById('paymentMethod');
+    const cardDetails = document.getElementById('cardDetails');
+    const cashDetails = document.getElementById('cashDetails');
+    const courierDetails = document.getElementById('courierDetails');
+    const cryptoDetails = document.getElementById('cryptoDetails');
+
+    paymentMethodSelect.addEventListener('change', function () {
+        cardDetails.style.display = this.value === 'card_online' ? 'block' : 'none';
+        cashDetails.style.display = this.value === 'cash' ? 'block' : 'none';
+        courierDetails.style.display = this.value === 'card_courier' ? 'block' : 'none';
+        cryptoDetails.style.display = this.value === 'crypto' ? 'block' : 'none';
+    });
+
+    document.getElementById('submitPayment').addEventListener('click', function () {
+        const form = document.getElementById('paymentForm');
+        const formData = new FormData(form);
+        const orderId = formData.get('order_id');
+        const paymentMethod = formData.get('payment_method');
+
+        console.log('Order ID:', orderId); // Для отладки
+
+        // Client-side validation
+        if (!paymentMethod) {
+            alert('Пожалуйста, выберите способ оплаты.');
+            return;
+        }
+
+        if (paymentMethod === 'card_online') {
+            const cardNumber = formData.get('card_number');
+            const cardExpiry = formData.get('card_expiry');
+            const cardCVC = formData.get('card_cvc');
+
+            if (!cardNumber || !cardExpiry || !cardCVC) {
+                alert('Пожалуйста, заполните все поля карты.');
+                return;
+            }
+
+            // Validate card number (e.g., 16 digits)
+            if (!/^\d{16}$/.test(cardNumber.replace(/\s/g, ''))) {
+                alert('Номер карты должен состоять из 16 цифр.');
+                return;
+            }
+
+            // Validate card expiry (MM/YY)
+            if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry)) {
+                alert('Срок действия карты должен быть в формате MM/YY (например, 12/25).');
+                return;
+            }
+
+            // Validate CVC (3 or 4 digits)
+            if (!/^\d{3,4}$/.test(cardCVC)) {
+                alert('CVC должен состоять из 3 или 4 цифр.');
+                return;
+            }
+        }
+
+        if (paymentMethod === 'crypto') {
+            const cryptoWallet = formData.get('crypto_wallet');
+            if (!cryptoWallet) {
+                alert('Пожалуйста, укажите адрес криптокошелька.');
+                return;
+            }
+            // Optional: Add basic crypto wallet validation (e.g., length or prefix)
+            if (cryptoWallet.length < 26 || cryptoWallet.length > 62) {
+                alert('Адрес криптокошелька должен быть от 26 до 62 символов.');
+                return;
+            }
+        }
+
+        fetch('/orders/pay', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const statusBadge = document.querySelector(`#order-${orderId} .badge`);
+                let statusText, badgeClass;
+
+                switch (paymentMethod) {
+                    case 'card_online':
+                        statusText = 'Оплачен онлайн';
+                        badgeClass = 'badge bg-success';
+                        break;
+                    case 'crypto':
+                        statusText = 'Оплачен криптовалютой';
+                        badgeClass = 'badge bg-success';
+                        break;
+                    case 'cash':
+                    case 'card_courier':
+                        statusText = 'Ожидает оплаты';
+                        badgeClass = 'badge bg-warning';
+                        break;
+                    default:
+                        statusText = 'Обработан';
+                        badgeClass = 'badge bg-warning';
+                }
+
+                statusBadge.textContent = statusText;
+                statusBadge.className = badgeClass;
+
+                const payButton = document.querySelector(`#order-${orderId} .btn-primary`);
+                if (payButton) payButton.remove();
+
+                const modal = bootstrap.Modal.getInstance(paymentModal);
+                modal.hide();
+
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show';
+                alert.innerHTML = `Заказ успешно обработан! <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                document.querySelector('.container').prepend(alert);
+            } else {
+                alert(`Ошибка при оплате: ${data.message || 'Неизвестная ошибка'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Payment error:', error); // Log the full error
+            alert(`Ошибка при оплате: ${error.message || 'Ошибка сети'}`);
+        });
+    });
+});
+</script>
 {% endblock %}
