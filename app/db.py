@@ -83,7 +83,7 @@ def init_db():
             products.add_fulltext_index(["description"])
         
         # Инициализация тестовых данных
-        #init_test_data(db)
+        init_test_data(db)
         
         return db
     except Exception as e:
