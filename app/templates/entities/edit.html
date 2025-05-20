@@ -9,14 +9,24 @@
             {% if key != "_key" %}
             <div class="mb-3">
                 <label for="{{ key }}" class="form-label">{{ key|capitalize }}</label>
-                <input
-                    type="text"
-                    class="form-control"
-                    min="0" step="any"
-                    id="{{ key }}"
-                    name="{{ key }}"
-                    value="{{ value | e }}"
-                >
+                {% if key in ['price', 'width', 'height', 'quantity'] %}
+                    <input
+                        type="number"
+                        class="form-control"
+                        min="0" step="any"
+                        id="{{ key }}"
+                        name="{{ key }}"
+                        value="{{ value | e }}"
+                    >
+                {% else %}
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="{{ key }}"
+                        name="{{ key }}"
+                        value="{{ value | e }}"
+                    >
+                {% endif %}
             </div>
             {% endif %}
         {% endfor %}
