@@ -10,7 +10,7 @@ services:
     depends_on:
       - db
     volumes:
-      - app-data:/app  # Чистый volume, без локального кода
+      - app-data:/app  
 
   db:
     image: arangodb:3.11.3
