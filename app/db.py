@@ -5,6 +5,10 @@ import bcrypt
 from datetime import datetime
 from typing import Optional
 from arango.database import StandardDatabase
+from pathlib import Path
+import json
+import traceback
+
 
 # Конфигурация подключения к ArangoDB
 ARANGO_HOST = os.getenv("ARANGO_HOST", "http://arangodb:8529")
@@ -44,7 +48,6 @@ def init_db():
             "products",    # Оконные конструкции
             "orders",      # Заказы клиентов
             "measurements", # Замеры
-            "payments",     # Платежи
             "photos"        # Фотографии товаров
         ]
         
@@ -83,7 +86,8 @@ def init_db():
             products.add_fulltext_index(["description"])
         
         # Инициализация тестовых данных
-        init_test_data(db)
+        #init_test_data(db)
+
         
         return db
     except Exception as e:
@@ -213,10 +217,60 @@ def init_test_data(db):
         })
         
         print("Добавлены тестовые заказы и связи")
+def is_collection_empty(name):
+    try:
+        count = db.collection(name).count()
+        print(f"[INFO] Коллекция '{name}' содержит {count} элементов")
+        return count == 0
+    except Exception as e:
+        print(f"[ERROR] Ошибка при проверке коллекции '{name}': {e}")
+        traceback.print_exc()
+        return False
+
+
+def load_initial_data():
+    print(f" Проверка наличия файла")
+
+    data_path = Path(__file__).parent / "data" / "initial_data.json"
+
+    print(f" Проверка наличия файла начальных данных по пути: {data_path}")
+    if not data_path.exists():
+        print(f"[ERROR] Файл с начальными данными не найден: {data_path}")
+        return
+
+    try:
+        with open(data_path, "r", encoding="utf-8") as f:
+            f.seek(0)
+            data = json.load(f)
+    except Exception as e:
+        print(f"[ERROR] Не удалось загрузить или распарсить JSON-файл: {e}")
+        traceback.print_exc()
+        return
+
+    collections = ["products", "orders", "users", "measurements"]
+
+    for col in collections:
+        if is_collection_empty(col):
+            print(f"[INFO] Коллекция '{col}' пустая — загружаем данные...")
+            for item in data.get(col, []):
+                item.pop("_id", None)
+                item.pop("_rev", None)
+                try:
+                    db.collection(col).insert(item)
+                    print(f"[SUCCESS] Документ вставлен в '{col}': {item.get('_key', '<без ключа>')}")
+                except Exception as e:
+                    print(f"[ERROR] Ошибка вставки в коллекцию '{col}': {e}")
+                    print(f"[DATA] Проблемный документ: {item}")
+                    traceback.print_exc()
+        else:
+            print(f"[INFO] Коллекция '{col}' уже содержит данные — пропускаем загрузку")
+
+
 
 # Инициализация базы данных при импорте модуля
 try:
     db = init_db()
+    load_initial_data()
     print("База данных успешно инициализирована")
 except Exception as e:
     print(f"Ошибка инициализации БД: {e}")
