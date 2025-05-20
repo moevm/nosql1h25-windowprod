@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Список элементов: {{ entity_type|capitalize }}</h2>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>_key</th>
+                <th>Данные</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entity in entities %}
+            <tr>
+                <td>{{ entity._key }}</td>
+                <td>
+                    <pre style="white-space: pre-wrap; max-height: 150px; overflow-y: auto;">
+{{ entity | tojson(indent=2) }}
+                    </pre>
+                </td>
+                <td>
+                    <a href="/entities/{{ entity_type }}/{{ entity._key }}/edit" class="btn btn-sm btn-primary">Редактировать</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="/entities/choose_type" class="btn btn-secondary">Вернуться к выбору типа</a>
+</div>
+{% endblock %}

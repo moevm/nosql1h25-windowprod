@@ -34,6 +34,13 @@
                 </div>
             </div>
         </div>
+        {% if user.role == 'superadmin' %}
+            <div class="col-md-4  justify-content-center align-items-center" style="min-height: 50px;">
+                <a href="/entities/" class="btn btn-outline-primary btn-lg">
+                    <i class="bi bi-kanban-fill me-2"></i> Управление сущностями
+                </a>
+            </div>
+        {% endif %}
         <form method="get" action="/admin/export">
             <button type="submit" class="btn btn-outline-primary">Экспортировать все данные (JSON)</button>
         </form>

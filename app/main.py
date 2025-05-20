@@ -606,6 +606,7 @@ async def create_product(
             {
                 "request": request,
                 "user": user,
+                "is_authenticated": True,
                 "errors": errors,
                 "form_data": {
                     "name": name,
@@ -797,7 +798,7 @@ def is_collection_empty(collection_name: str) -> bool:
     return count == 0
 
 def load_initial_data():
-    # Пусть файл лежит по пути data/initial_data.json
+
     data_path = Path(__file__).parent / "data" / "initial_data.json"
     if not data_path.exists():
         print("Файл с начальными данными не найден:", data_path)
@@ -820,6 +821,72 @@ def load_initial_data():
         else:
             print(f"Коллекция '{col}' уже содержит данные — пропускаем загрузку")
 
+async def parse_form_data(request: Request):
+    form = await request.form()
+    return dict(form)
+
+
+@app.get("/entities/{entity_type}/", response_class=HTMLResponse)
+async def list_entities(request: Request, entity_type: str, user: User = Depends(get_current_user)):
+    if not user:
+        print("Redirecting to /login — user is None")
+        return RedirectResponse("/login")
+    print(f"User role: {user.role}")
+    verify_role(user, ["superadmin"])
+
+    # Проверяем, что entity_type поддерживается
+    allowed = ["users", "products", "orders", "measurements", "payments", "photos"]
+    if entity_type not in allowed:
+        return HTMLResponse("Entity type not supported", status_code=400)
+
+    collection = db.collection(entity_type)
+    entities = list(collection.all())
+
+    return templates.TemplateResponse(
+        "entities/list.html",
+        {"request": request, "entities": entities, "entity_type": entity_type, "user": user , "is_authenticated": True}
+    )
+@app.get("/entities/{entity_type}/{entity_id}/edit", response_class=HTMLResponse)
+async def edit_entity_form(request: Request, entity_type: str, entity_id: str, user: User = Depends(get_current_user)):
+    if not user:
+        print("Redirecting to /login — user is None")
+        return RedirectResponse("/login")
+    print(f"User role: {user.role}")
+    verify_role(user, ["superadmin"])
+    collection = db.collection(entity_type)
+    entity = collection.get(entity_id)
+    return templates.TemplateResponse("entities/edit.html", {"request": request, "entity": entity, "entity_type": entity_type , "user": user ,"is_authenticated": True})
+
+
+@app.post("/entities/{entity_type}/{item_id}/edit")
+async def entity_edit(request: Request, entity_type: str, item_id: str, user: User = Depends(get_current_user)):
+    if not user:
+        print("Redirecting to /login — user is None")
+        return RedirectResponse("/login")
+    print(f"User role: {user.role}")
+
+    verify_role(user, ["superadmin"])
+
+    form = await request.form()
+    data = dict(form)
+
+    if entity_type not in ["users", "products", "orders", "measurements", "payments", "photos"]:
+        return HTMLResponse("Тип сущности не найден", status_code=404)
+
+    db.collection(entity_type).update_match({"_key": item_id}, data)
+
+    return RedirectResponse(url=f"/entities/{entity_type}/", status_code=303)
+
+
+@app.get("/entities/", response_class=HTMLResponse)
+async def choose_entity_type(request: Request, user: User = Depends(get_current_user)):
+    if not user:
+        print("Redirecting to /login — user is None")
+        return RedirectResponse("/login")
+    print(f"User role: {user.role}")
+    verify_role(user, ["superadmin"])
+    entity_types = ["users", "products", "orders", "measurements", "payments", "photos"]
+    return templates.TemplateResponse("entities/choose_type.html", {"request": request, "entity_types": entity_types, "user": user, "is_authenticated": True})
 
 if __name__ == "__main__":
     load_initial_data()
