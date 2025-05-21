@@ -150,109 +150,33 @@ document.addEventListener('DOMContentLoaded', function () {
         const form = document.getElementById('paymentForm');
         const formData = new FormData(form);
         const orderId = formData.get('order_id');
-        const paymentMethod = formData.get('payment_method');
 
-        console.log('Order ID:', orderId); // Для отладки
-
-        // Client-side validation
-        if (!paymentMethod) {
-            alert('Пожалуйста, выберите способ оплаты.');
+        if (!orderId) {
+            alert('Не удалось определить заказ.');
             return;
-        }
-
-        if (paymentMethod === 'card_online') {
-            const cardNumber = formData.get('card_number');
-            const cardExpiry = formData.get('card_expiry');
-            const cardCVC = formData.get('card_cvc');
-
-            if (!cardNumber || !cardExpiry || !cardCVC) {
-                alert('Пожалуйста, заполните все поля карты.');
-                return;
-            }
-
-            // Validate card number (e.g., 16 digits)
-            if (!/^\d{16}$/.test(cardNumber.replace(/\s/g, ''))) {
-                alert('Номер карты должен состоять из 16 цифр.');
-                return;
-            }
-
-            // Validate card expiry (MM/YY)
-            if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry)) {
-                alert('Срок действия карты должен быть в формате MM/YY (например, 12/25).');
-                return;
-            }
-
-            // Validate CVC (3 or 4 digits)
-            if (!/^\d{3,4}$/.test(cardCVC)) {
-                alert('CVC должен состоять из 3 или 4 цифр.');
-                return;
-            }
-        }
-
-        if (paymentMethod === 'crypto') {
-            const cryptoWallet = formData.get('crypto_wallet');
-            if (!cryptoWallet) {
-                alert('Пожалуйста, укажите адрес криптокошелька.');
-                return;
-            }
-            // Optional: Add basic crypto wallet validation (e.g., length or prefix)
-            if (cryptoWallet.length < 26 || cryptoWallet.length > 62) {
-                alert('Адрес криптокошелька должен быть от 26 до 62 символов.');
-                return;
-            }
         }
 
         fetch('/orders/pay', {
             method: 'POST',
-            body: formData
+            body: JSON.stringify({ order_id: orderId }),
+            headers: {
+                'Content-Type': 'application/json'
+            }
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const statusBadge = document.querySelector(`#order-${orderId} .badge`);
-                let statusText, badgeClass;
-
-                switch (paymentMethod) {
-                    case 'card_online':
-                        statusText = 'Оплачен онлайн';
-                        badgeClass = 'badge bg-success';
-                        break;
-                    case 'crypto':
-                        statusText = 'Оплачен криптовалютой';
-                        badgeClass = 'badge bg-success';
-                        break;
-                    case 'cash':
-                    case 'card_courier':
-                        statusText = 'Ожидает оплаты';
-                        badgeClass = 'badge bg-warning';
-                        break;
-                    default:
-                        statusText = 'Обработан';
-                        badgeClass = 'badge bg-warning';
-                }
-
-                statusBadge.textContent = statusText;
-                statusBadge.className = badgeClass;
-
-                const payButton = document.querySelector(`#order-${orderId} .btn-primary`);
-                if (payButton) payButton.remove();
-
-                const modal = bootstrap.Modal.getInstance(paymentModal);
-                modal.hide();
-
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-success alert-dismissible fade show';
-                alert.innerHTML = `Заказ успешно обработан! <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-                document.querySelector('.container').prepend(alert);
+                window.location.href = '/orders';  // возвращаемся на страницу заказов
             } else {
                 alert(`Ошибка при оплате: ${data.message || 'Неизвестная ошибка'}`);
             }
         })
         .catch(error => {
-            console.error('Payment error:', error); // Log the full error
+            console.error('Payment error:', error);
             alert(`Ошибка при оплате: ${error.message || 'Ошибка сети'}`);
         });
     });
+
 });
 </script>
 {% endblock %}

@@ -26,6 +26,7 @@
                 <td>{{ order.total_price }} ₽</td>
                 <td>
                     <span class="badge bg-{% if order.status == 'new' %}primary
+                    {% elif order.status == 'оплачен' %}Оплачен
                     {% elif order.status == 'completed' %}success
                     {% else %}warning{% endif %}">
                         {{ order.status }}

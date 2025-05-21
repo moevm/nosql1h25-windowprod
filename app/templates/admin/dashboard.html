@@ -1,6 +1,17 @@
+
 {% extends "base.html" %}
 
 {% block content %}
+    {% if request.query_params.imported %}
+        <div class="alert alert-success mt-3">
+            Импорт завершён. Добавлено {{ request.query_params.imported }} {{
+                'документ' if request.query_params.imported|int == 1 else
+                'документа' if request.query_params.imported|int % 10 in [2, 3, 4] and request.query_params.imported|int % 100 not in [12, 13, 14]
+                else 'документов'
+            }}.
+        </div>
+    {% endif %}
+
 <div class="container">
     <h2>Панель администратора</h2>
     

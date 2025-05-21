@@ -640,18 +640,37 @@ async def create_product(
 
 # Для товаров
 @app.get("/admin/products", response_class=HTMLResponse)
-async def admin_products(request: Request, user: User = Depends(get_current_user)):
+async def admin_products(request: Request, user: User = Depends(get_current_user), search: str = ""):
     verify_role(user, ["admin", "superadmin"])
-    products = list(db.collection("products").find({}))
+
+    if search:
+        aql = """
+        FOR p IN products
+            FILTER CONTAINS(LOWER(p.name), LOWER(@search))
+            RETURN p
+        """
+        bind_vars = {"search": search}
+    else:
+        aql = "FOR p IN products RETURN p"
+        bind_vars = {}
+
+    cursor = db.aql.execute(aql, bind_vars=bind_vars)
+    products = list(cursor)
+
     return templates.TemplateResponse(
         "admin/products.html",
         {
             "request": request,
             "products": products,
             "user": user,
-            "is_authenticated": True
+            "is_authenticated": True,
+            "search": search,
+            "total": len(products),
         }
     )
+
+
+
     
 
 # Маршруты для управления заказами
@@ -772,6 +791,8 @@ async def export_data(user: User = Depends(get_current_user)):
     except Exception as e:
         print(f"Ошибка экспорта: {e}")
         raise HTTPException(status_code=500, detail="Ошибка экспорта данных")
+
+
 @app.post("/admin/import")
 async def import_all_data(
     user: User = Depends(get_current_user),
@@ -783,20 +804,19 @@ async def import_all_data(
         content = await file.read()
         data = json.loads(content)
 
-        # Импортируем каждый тип данных
+        total_inserted = 0
         for collection_name in ["products", "orders", "users"]:
             if collection_name in data:
                 for item in data[collection_name]:
                     db.collection(collection_name).insert(item, overwrite=True)
+                    total_inserted += 1
 
-        return RedirectResponse("/admin/dashboard", status_code=303)
+        # Передаём количество импортированных объектов через query string
+        return RedirectResponse(f"/admin/dashboard?imported={total_inserted}", status_code=303)
+
     except Exception as e:
         print(f"Ошибка импорта данных: {e}")
         raise HTTPException(status_code=400, detail="Ошибка импорта данных")
-
-async def parse_form_data(request: Request):
-    form = await request.form()
-    return dict(form)
 
 
 @app.get("/entities/{entity_type}/", response_class=HTMLResponse)

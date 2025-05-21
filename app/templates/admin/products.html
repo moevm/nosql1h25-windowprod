@@ -14,6 +14,13 @@
                 <a href="/admin/products" class="btn btn-secondary">Сбросить</a>
             </div>
         </form>
+        <p class="mt-2">
+            Найдено: {{ total }}
+            {% if total %}
+                {{ 'товар' if total == 1 else 'товара' if total % 10 in [2, 3, 4] and total % 100 not in [12, 13, 14] else 'товаров' }}
+            {% endif %}
+        </p>
+
     </div>
 
     <table class="table table-striped">

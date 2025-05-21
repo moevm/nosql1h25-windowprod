@@ -93,7 +93,14 @@
 
     <!-- Результаты -->
     {% if products %}
+            <p>
+                Найдено: {{ products|length }}
+                {% if products|length %}
+                    {{ 'товар' if products|length == 1 else 'товара' if products|length % 10 in [2, 3, 4] and products|length % 100 not in [12, 13, 14] else 'товаров' }}
+                {% endif %}
+            </p>
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+
         {% for product in products %}
         <div class="col">
             <div class="card h-100 shadow-sm">
